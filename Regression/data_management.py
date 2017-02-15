@@ -11,6 +11,7 @@ Folder SonarJpg>array
 '''
 
 PERCENTAGE_TRAIN = 0.85
+SHAPE = 128
 
 
 def display_progression_epoch(j, id_max):
@@ -22,23 +23,23 @@ def display_progression_epoch(j, id_max):
 def read_jpg(image_dir: str) -> np.array:
     """
     decode jpeg images
-    :param image_dir:  folder containing jpg images
+    :param image_dir:  folder containing jpg images, shape : dim of resized image
     :return: numpy array of vectorized images (column vector)
     """
     image_paths = glob.glob(image_dir + '/*')
     # image_paths.sort()
     nb_frames = len(image_paths)
-    images = np.zeros((nb_frames, 128 * 128), dtype=np.uint8)
+    images = np.zeros((nb_frames, SHAPE**2), dtype=np.uint8)
     cpt = 0
     for image_path in image_paths:
 
-        if cpt % 5 == 0:
+        if cpt % 1 == 0:
             display_progression_epoch(cpt, nb_frames)
 
         image = Image.open(image_path).convert('L')
-        image = image.resize((128, 128))
+        image = image.resize((SHAPE, SHAPE))
         image = np.array(image, dtype=np.uint8)
-        images[cpt, :] = image.reshape(128 * 128)
+        images[cpt, :] = image.reshape(SHAPE**2)
         cpt += 1
     return images
 
@@ -53,9 +54,11 @@ def read_bb(fname: str) -> np.array:
         content = f.readlines()
         content = [x.strip().split() for x in content]
         content = [list(map(int, x)) for x in content]
-        # !!!!! divide by 2 because images are resized 128*128
+
         content = np.asarray(content)
-        return content / 2
+        # !!!!! scaled because image are resized ?
+        # return int(content * shape / 256)
+        return content
 
 
 def preprocess_images(images):
@@ -72,7 +75,7 @@ def preprocess_images(images):
 
 
 def save_data(save_dir, fname, output_dir):
-    images = read_jpg(save_dir)
+    images = read_jpg(save_dir, )
     labels = read_bb(fname)
     np.savez(output_dir, images=images, labels=labels)
     return images, labels
@@ -92,6 +95,8 @@ class Train:
         self.Images = images
         self.Labels = lbl
         self.num_examples = images.shape[0]
+        self.sizeImage = images.shape[1]
+        self.sizeLabel = lbl.shape[1]
 
     def get_batch(self, batch_size, batch_number):
         """
@@ -126,6 +131,8 @@ class Test:
         self.Images = images
         self.Labels = lbl
         self.num_examples = images.shape[0]
+        self.sizeImage = images.shape[1]
+        self.sizeLabel = lbl.shape[1]
 
     def get_batch(self, batch_size, batch_number):
         """

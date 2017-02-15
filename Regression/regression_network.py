@@ -11,11 +11,11 @@ import tensorflow as tf
 OUTPUT_SIZE = 4
 
 
-def placeholder_training(image_size, output_size, batch_size):
-    x_placeholder = tf.placeholder('float32', [batch_size, image_size])
-    y_placeholder = tf.placeholder('float32', [batch_size, output_size])
-    keep_prob = tf.placeholder(tf.float32)
-    return y_placeholder, x_placeholder, keep_prob
+def placeholder_training(image_size, labels_size, batch_size):
+    images_pl = tf.placeholder('float32', [batch_size, image_size], name='images_pl')
+    labels_pl = tf.placeholder('float32', [batch_size, labels_size], name='labels_pl')
+    keep_prob_pl = tf.placeholder(tf.float32, name='keep_prob_pl')
+    return labels_pl, images_pl, keep_prob_pl
 
 
 def inference(images, keep_prob):
@@ -26,21 +26,27 @@ def inference(images, keep_prob):
     images = tf.reshape(images, shape=[-1, 128, 128, 1])
 
     with tf.name_scope('hidden_layer_1'):
-        weights = tf.Variable(tf.random_normal([8, 8, 1, 32]),name='weights')
+        weights = tf.Variable(tf.random_normal([16, 16, 1, 32]), name='weights')
         biases = tf.Variable(tf.random_normal([32]), name='biases')
-        hidden1 = tf.nn.relu(conv2d(images,weights)+biases)
+        hidden1 = tf.nn.relu(conv2d(images, weights) + biases)
         hidden1 = maxpool2d(hidden1)
 
     with tf.name_scope('hidden_layer_2'):
-        weights = tf.Variable(tf.random_normal([8, 8, 32, 64]),name='weights')
+        weights = tf.Variable(tf.random_normal([16, 16, 32, 64]), name='weights')
         biases = tf.Variable(tf.random_normal([64]), name='biases')
-        hidden2 = tf.nn.relu(conv2d(hidden1,weights)+biases)
+        hidden2 = tf.nn.relu(conv2d(hidden1, weights) + biases)
         hidden2 = maxpool2d(hidden2)
 
+    with tf.name_scope('hidden_layer_3'):
+        weights = tf.Variable(tf.random_normal([8, 8, 64, 128]), name='weights')
+        biases = tf.Variable(tf.random_normal([128]), name='biases')
+        hidden3 = tf.nn.relu(conv2d(hidden2, weights) + biases)
+        hidden3 = maxpool2d(hidden3)
+
     with tf.name_scope('fully_connected'):
-        weights = tf.Variable(tf.random_normal([32 * 32 * 64, 1024]),name='weights')
-        biases = tf.Variable(tf.random_normal([1024]),name='biases')
-        fc = tf.reshape(hidden2, [-1, 32 * 32 * 64])
+        weights = tf.Variable(tf.random_normal([16 * 16 * 128, 1024]), name='weights')
+        biases = tf.Variable(tf.random_normal([1024]), name='biases')
+        fc = tf.reshape(hidden3, [-1, 16 * 16 * 128])
         fc = tf.nn.relu(tf.matmul(fc, weights) + biases)
         fc = tf.nn.dropout(fc, keep_prob)
 
@@ -54,17 +60,22 @@ def inference(images, keep_prob):
 
 def regression_loss(output, true_labels):
     # loss = 2 * tf.nn.l2_loss(output - labels, name='l2_loss')
-    loss = tf.reduce_mean (tf.reduce_sum((output - true_labels) ** 2, axis=1), name='l2_loss')
-    return loss
+    with tf.name_scope('Cost_function'):
+        loss = tf.reduce_mean(tf.reduce_sum((output - true_labels) ** 2, axis=1), name='l2_loss')
+        return loss
+
 
 def training(loss):
+    tf.summary.scalar('loss', loss)
     train_op = tf.train.AdamOptimizer().minimize(loss)
     return train_op
 
 
 def accuracy(output, true_labels):
-    accuracy_bb = tf.reduce_mean(tf.sqrt(tf.reduce_mean((output-true_labels)**2,axis=1)), )
-    return accuracy_bb
+    with tf.name_scope('Accuracy'):
+        accuracy_bb = tf.reduce_mean(tf.sqrt(tf.reduce_mean((output - true_labels) ** 2, axis=1)),
+                                     name='Regression_accuracy')
+        return accuracy_bb
 
 
 def conv2d(x, w):
