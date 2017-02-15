@@ -9,23 +9,44 @@ FLAGS = None
 KEEP_RATE = 0.8
 
 
-def do_eval(sess, images_pl, labels_pl, images, labels, keep_prob):
-    accuracy = evaluation(images_pl, labels_pl, keep_prob)
-    result = sess.run(accuracy, feed_dict={images_pl: images, labels_pl: labels})
-    print('evaluation (l2 loss) :', result)
+def do_eval(sess,
+            loss,
+            precision,
+            output,
+            images_pl,
+            labels_pl,
+            data_set,
+            keep_prob):
+    step_per_epoch = data_set.Test.num_examples // FLAGS.batch_size
+    number_tested = step_per_epoch * FLAGS.batch_size
+    error = 0
+    pres = 0
+    output_list = []
+    for step in range(step_per_epoch):
+        display_progression_epoch(step, step_per_epoch,1)
+        batch_images, batch_labels = data_set.Test.get_batch(FLAGS.batch_size, step)
+        [e, p, o] = sess.run([loss, precision, output], feed_dict={images_pl: batch_images,
+                                                                 labels_pl: batch_labels,
+                                                                 keep_prob: 1.0})
+        error += e
+        pres += p
+        output_list.append(o)
+
+        precision_avg = precision / step_per_epoch
+    print('evaluation on data test\n number of images', number_tested, '\nerror (l2 loss)', error,
+          '\nerror (avg of pixels)', precision_avg)
+
+    return output_list
 
 
-def write_eval(sess,images_pl, labels_pl, Test, keep_prob, dir_out_bb):
-    output = inference(images_pl, keep_prob)
-    predicted_bb = sess.run(output, {images_pl: Test.Images,
-                                  labels_pl: Test.Label, keep_prob: 1.0})
-
+def write_eval(output_list, dir_out_bb):
+    predicted_bb = np.asarray(output_list)
     np.savetxt(dir_out_bb, predicted_bb, delimiter=' ', fmt='%d')
 
 
 def display_progression_epoch(j, id_max, epoch):
     batch_progression = int((j / id_max) * 100)
-    sys.stdout.write(str(batch_progression) + ' % of the epoch ' + str(epoch+1) + ' completed' + chr(13))
+    sys.stdout.write(str(batch_progression) + ' % of the epoch ' + str(epoch + 1) + ' completed' + chr(13))
     sys.stdout.flush
 
 
@@ -35,16 +56,18 @@ def run_training():
     with tf.device('/cpu:0'):
         print('constructing graph ...')
 
-        labels_pl, images_pl, keep_prob = placeholder_training(data_set.sizeImage, data_set.sizeLabel)
+        labels_pl, images_pl, keep_prob = placeholder_training(data_set.sizeImage,
+                                                               data_set.sizeLabel,
+                                                               FLAGS.batch_size)
 
         output = inference(images_pl, keep_prob)
         loss = regression_loss(output, labels_pl)
         train_op = training(loss)
-        precision = evaluation(images_pl, labels_pl, keep_prob)
+        precision = accuracy(output, labels_pl)
 
         init = tf.global_variables_initializer()
 
-        #force on cpu
+        # force on cpu
         config = tf.ConfigProto(
             device_count={'GPU': 0}
         )
@@ -52,7 +75,7 @@ def run_training():
 
         sess.run(init)
 
-        id_max = int(data_set.Train.num_example / FLAGS.batch_size)
+        id_max = int(data_set.Train.num_examples / FLAGS.batch_size)
 
         for epoch in range(FLAGS.number_epoch):
 
@@ -72,14 +95,10 @@ def run_training():
 
                 epoch_loss += loss_value
 
-            print('Epoch ', epoch+1, '/', FLAGS.number_epoch, 'completed', '   loss:', epoch_loss)
+            print('Epoch ', epoch + 1, '/', FLAGS.number_epoch, 'completed', '   loss:', epoch_loss)
 
-        # print('Neural net sucessfully trained, starting evaluation on test data...')
-        #
-        # result = sess.run(precision, {images_pl: data_set.Test.Images,
-        #                               labels_pl: data_set.Test.Label,
-        #                               keep_prob: 1.0})
-        # print('Evaluation DataTest :', result)
+        output_list = do_eval(sess, loss, precision, images_pl, output, labels_pl, data_set, keep_prob)
+        write_eval(output_list, FLAGS.dir_out_bb)
 
 
 if __name__ == '__main__':
@@ -92,7 +111,9 @@ if __name__ == '__main__':
                         help='How many images to train on at a time.')
     parser.add_argument('--number_epoch', type=int, default=1,
                         help='How many epoch.')
-    parser.add_argument('--data_set_dir', type=str, default='BDD1.npz',
+    parser.add_argument('--data_set_dir', type=str, default='../BDD1.npz',
                         help='How many epoch.')
+    parser.add_argument('--dir_out_bb', type=str, default='../out_bb.txt',
+                        help='Directory for writing outputs')
     FLAGS = parser.parse_args()
     run_training()

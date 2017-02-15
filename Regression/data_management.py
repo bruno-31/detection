@@ -53,9 +53,9 @@ def read_bb(fname: str) -> np.array:
         content = f.readlines()
         content = [x.strip().split() for x in content]
         content = [list(map(int, x)) for x in content]
-        # !!!!! divide by 2 because images are resized
+        # !!!!! divide by 2 because images are resized 128*128
         content = np.asarray(content)
-        return content/2
+        return content / 2
 
 
 def preprocess_images(images):
@@ -64,7 +64,7 @@ def preprocess_images(images):
     :param images: array of vectorized images
     :return: array of preprocessed images
     """
-    #cast array to float
+    # cast array to float
     images = images.astype(np.float32)
     images -= np.mean(images)
     images /= np.std(images)
@@ -90,8 +90,8 @@ def load_data(save_dir):
 class Train:
     def __init__(self, images, lbl):
         self.Images = images
-        self.Label = lbl
-        self.num_example = images.shape[0]
+        self.Labels = lbl
+        self.num_examples = images.shape[0]
 
     def get_batch(self, batch_size, batch_number):
         """
@@ -106,7 +106,7 @@ class Train:
             batch = self.Images[-batch_size:, :]
             return batch
         batch_images = self.Images[beg:end, :]
-        batch_labels = self.Label[beg:end]
+        batch_labels = self.Labels[beg:end]
         return batch_images, batch_labels
 
     def shuffle_data(self):
@@ -115,17 +115,33 @@ class Train:
         :return: void
         """
         images = self.Images
-        labels = self.Label
-        images,labels = tflearn.data_utils.shuffle(images, labels)
-        self.Label = labels
+        labels = self.Labels
+        images, labels = tflearn.data_utils.shuffle(images, labels)
+        self.Labels = labels
         self.Images = images
 
 
 class Test:
     def __init__(self, images, lbl):
         self.Images = images
-        self.Label = lbl
-        self.num_test = images.shape[0]
+        self.Labels = lbl
+        self.num_examples = images.shape[0]
+
+    def get_batch(self, batch_size, batch_number):
+        """
+        create a batch with images from the dataset
+        id_max = int(data.Train.num_example/batch_size)
+        :return: batch array of vector
+        """
+        beg = batch_number * batch_size
+        end = (batch_number + 1) * batch_size
+        if end > self.Images.shape[0]:
+            print('carefull : batch index out of dataset !')
+            batch = self.Images[-batch_size:, :]
+            return batch
+        batch_images = self.Images[beg:end, :]
+        batch_labels = self.Labels[beg:end]
+        return batch_images, batch_labels
 
 
 class DataSet:
@@ -136,8 +152,7 @@ class DataSet:
         # labels = labels[images[:, 0]]
         # images = preprocess_images(images[:, 1:])
 
-
-        #preprocess images
+        # preprocess images
         images = preprocess_images(images)
         # shuffling datas before dividing dataset
         images, labels = tflearn.data_utils.shuffle(images, labels)
