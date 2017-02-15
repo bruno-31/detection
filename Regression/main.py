@@ -4,6 +4,7 @@ import argparse
 import tensorflow as tf
 import sys
 import numpy as np
+import os
 
 
 """
@@ -92,6 +93,8 @@ def run_training():
 
     init = tf.global_variables_initializer()
 
+    saver = tf.train.Saver()
+
     # force on cpu
     config = tf.ConfigProto(
         device_count={'GPU': 0}
@@ -128,7 +131,11 @@ def run_training():
                     summary_writer.add_summary(summary_str, train_step)
                     summary_writer.flush()
 
+        checkpoint_file = os.path.join(FLAGS.log_dir, 'model.ckpt')
+        saver.save(sess, checkpoint_file, global_step=train_step)
+
         print('Epoch ', epoch + 1, '/', FLAGS.number_epoch, 'completed', '   loss:', epoch_loss)
+
     output_list = do_eval(sess, loss, precision, output, images_pl, labels_pl, data_set, keep_prob_pl)
     write_eval(output_list, FLAGS.dir_out_bb)
 
@@ -139,9 +146,9 @@ if __name__ == '__main__':
                         help='Path to images Folder')
     parser.add_argument('--labels_file', type=str, default='labels.txt',
                         help='Path to label file')
-    parser.add_argument('--batch_size', type=int, default=256,
+    parser.add_argument('--batch_size', type=int, default=8,
                         help='How many images to train on at a time.')
-    parser.add_argument('--number_epoch', type=int, default=1,
+    parser.add_argument('--number_epoch', type=int, default=40,
                         help='How many epoch.')
     parser.add_argument('--data_set_dir', type=str, default='../BDD1.npz',
                         help='How many epoch.')
